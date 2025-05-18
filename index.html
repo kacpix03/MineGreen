@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>MineGreen PSC 💰</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
   <style>
     body {
       font-family: Arial;
@@ -63,7 +65,6 @@
 
   <div class="container">
     
-    <!-- Sekcja dla zwykłego doładowania -->
     <div class="section" id="userSection">
       <h2>🔐 Doładuj PSC</h2>
       <form id="pscForm">
@@ -74,13 +75,11 @@
       <p id="msg"></p>
     </div>
 
-    <!-- Historia zakupów -->
     <div class="section">
       <h2>📜 Historia zakupów</h2>
       <ul id="historyList"></ul>
     </div>
 
-    <!-- Panel admina -->
     <div class="section hidden" id="adminPanel">
       <h2>🛠️ Panel Administratora</h2>
       <p><strong>Historia (z opcją usuwania wpisów):</strong></p>
@@ -88,12 +87,24 @@
       <button onclick="clearHistory()">🗑️ Wyczyść wszystko</button>
       <button onclick="hideAdmin()">🚪 Wyjdź</button>
     </div>
-
   </div>
 
   <script>
+    // 🔑 Firebase konfiguracja (tymczasowy projekt, działa online!)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDxFq-example-key",
+      authDomain: "minegreen-psc.firebaseapp.com",
+      databaseURL: "https://minegreen-psc-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "minegreen-psc",
+      storageBucket: "minegreen-psc.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:example"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     const ADMIN_KOD = "3341892137";
-    const historyKey = "historiaPSC";
 
     const form = document.getElementById('pscForm');
     const msg = document.getElementById('msg');
@@ -102,49 +113,37 @@
     const adminPanel = document.getElementById('adminPanel');
     const adminButton = document.getElementById('adminButton');
 
-    function getHistory() {
-      return JSON.parse(localStorage.getItem(historyKey) || "[]");
-    }
-
-    function setHistory(data) {
-      localStorage.setItem(historyKey, JSON.stringify(data));
-    }
-
     function loadHistory(listElement, adminMode = false) {
-      const history = getHistory();
-      listElement.innerHTML = "";
-      history.forEach((entry, index) => {
-        const li = document.createElement("li");
-        li.textContent = `${entry.nick} doładował kod: ${entry.code}`;
-        if (adminMode) {
-          const del = document.createElement("button");
-          del.textContent = "🗑️";
-          del.className = "delete-button";
-          del.onclick = () => {
-            deleteEntry(index);
-          };
-          li.appendChild(del);
-        }
-        listElement.appendChild(li);
+      db.ref("historia").once("value", snapshot => {
+        const data = snapshot.val() || {};
+        listElement.innerHTML = "";
+        Object.keys(data).forEach(key => {
+          const entry = data[key];
+          const li = document.createElement("li");
+          li.textContent = `${entry.nick} doładował kod: ${entry.code}`;
+          if (adminMode) {
+            const del = document.createElement("button");
+            del.textContent = "🗑️";
+            del.className = "delete-button";
+            del.onclick = () => {
+              db.ref("historia/" + key).remove();
+              loadHistory(adminHistoryList, true);
+              loadHistory(historyList);
+            };
+            li.appendChild(del);
+          }
+          listElement.appendChild(li);
+        });
       });
     }
 
     function saveToHistory(nick, code) {
-      const history = getHistory();
-      history.push({ nick, code });
-      setHistory(history);
-    }
-
-    function deleteEntry(index) {
-      const history = getHistory();
-      history.splice(index, 1);
-      setHistory(history);
-      loadHistory(adminHistoryList, true);
-      loadHistory(historyList);
+      const newRef = db.ref("historia").push();
+      newRef.set({ nick, code });
     }
 
     function clearHistory() {
-      setHistory([]);
+      db.ref("historia").remove();
       loadHistory(adminHistoryList, true);
       loadHistory(historyList);
       alert("🗑️ Historia została wyczyszczona!");
@@ -173,14 +172,16 @@
       e.preventDefault();
       const nick = document.getElementById("nick").value.trim();
       const code = document.getElementById("code").value.trim();
-      saveToHistory(nick, code);
-      loadHistory(historyList);
-      msg.textContent = "✅ Kod został zapisany!";
-      msg.style.color = "lime";
-      form.reset();
+      if (nick && code) {
+        saveToHistory(nick, code);
+        loadHistory(historyList);
+        msg.textContent = "✅ Kod został zapisany!";
+        msg.style.color = "lime";
+        form.reset();
+      }
     });
 
-    // Wczytaj historię przy starcie
+    // 🔁 Startowe ładowanie historii
     loadHistory(historyList);
   </script>
 
